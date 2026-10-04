@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Egzamin – Światowy Dzień Tabliczki Mnożenia</title>
+    
+    <!-- Supabase Cloud DB -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <!-- EmailJS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+
+    <!-- Google Fonts: Caveat z pełnym zestawem polskich znaków -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&subset=latin,latin-ext&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --primary: #1e40af;
+            --primary-hover: #1d4ed8;
+            --success: #15803d;
+            --danger: #b91c1c;
+            --bg: #f8fafc;
+        }
+        * {
+            box-sizing: border-box;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            margin: 0; padding: 10px;
+            display: flex; flex-direction: column; align-items: center;
+            min-height: 100vh;
+        }
+        .top-nav {
+            width: 100%; max-width: 1000px; display: flex; justify-content: flex-end; margin-bottom: 8px;
+        }
+        .btn-teacher-login {
+            background: #475569; color: white; border: none; padding: 8px 16px;
+            border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600;
+        }
+
+        .container {
+            background: white; padding: 20px; border-radius: 16px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.06);
+            max-width: 500px; width: 100%; text-align: center;
+        }
+        h1 { color: var(--primary); margin: 0 0 8px 0; font-size: 21px; }
+        .form-group { margin: 12px 0; text-align: left; }
+        label { font-weight: 600; display: block; margin-bottom: 5px; color: #334155; font-size: 14px; }
+        
+        input[type="text"], input[type="email"], select {
+            width: 100%; padding: 12px 14px; border: 2px solid #cbd5e1;
+            border-radius: 8px; font-size: 16px; outline: none; background: white; user-select: text;
+        }
+        input:focus, select:focus { border-color: var(--primary); }
+        input:disabled { background-color: #f1f5f9; cursor: not-allowed; }
+        
+        .checkbox-label {
+            display: flex; align-items: center; gap: 8px; font-weight: normal;
+            font-size: 13px; color: #475569; margin-top: 8px; cursor: pointer;
+        }
+        .checkbox-label input { width: 18px; height: 18px; }
+
+        button.btn-primary {
+            background-color: var(--primary); color: white; border: none;
+            padding: 14px 20px; font-size: 17px; border-radius: 10px;
+            cursor: pointer; font-weight: bold; width: 100%; margin-top: 10px; min-height: 50px;
+        }
+        button.btn-primary:active { background-color: var(--primary-hover); transform: scale(0.98); }
+        .hidden { display: none !important; }
+
+        /* ========================================================
+           INTERFEJS EGZAMINU NA TABLET (ZERO SCROLLOWANIA)
+           ======================================================== */
+        .student-stats-bar {
+            background: #f1f5f9; padding: 8px 12px; border-radius: 8px; margin-bottom: 10px;
+            display: flex; justify-content: space-between; font-weight: 600; color: #334155; font-size: 13px;
+        }
+        .dots-progress { font-size: 18px; color: #94a3b8; letter-spacing: 5px; margin-bottom: 5px; }
+        .dots-progress span.active { color: var(--primary); }
+        .timer { font-size: 26px; font-weight: bold; color: #1e293b; margin: 4px 0; }
+        .question-box { font-size: 44px; font-weight: 800; color: #0f172a; margin: 10px 0; }
+        
+        /* Ekran z wpisanym wynikiem */
+        .answer-display {
+            min-height: 56px; font-size: 34px; font-weight: bold; color: var(--primary);
+            background: #f8fafc; border: 2px solid #cbd5e1; border-radius: 10px;
+            display: flex; align-items: center; justify-content: center; letter-spacing: 3px;
+            margin: 0 auto 12px; max-width: 320px;
+        }
+        .answer-placeholder { color: #94a3b8; font-weight: normal; font-size: 18px; }
+
+        /* WBUDOWANA KLAWIATURA NUMERYCZNA (NUMPAD) */
+        .numpad-grid {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+            max-width: 320px; margin: 0 auto;
+        }
+        .num-key {
+            background: #f1f5f9; border: 2px solid #cbd5e1; border-radius: 10px;
+            font-size: 26px; font-weight: 700; color: #1e293b; height: 58px;
+            display: flex; align-items: center; justify-content: center; cursor: pointer;
+            box-shadow: 0 2px 0 #cbd5e1;
+        }
+        .num-key:active {
+            background: #cbd5e1; transform: translateY(2px); box-shadow: none;
+        }
+        .num-key-action {
+            background: #e2e8f0; font-size: 20px; color: #475569;
+        }
+        .num-key-submit {
+            grid-column: span 3; background: var(--success); color: white;
+            font-size: 20px; height: 54px; margin-top: 4px; border: none; box-shadow: 0 2px 0 #166534;
+        }
+        .num-key-submit:active {
+            background: #166534; transform: translateY(2px); box-shadow: none;
+        }
+
+        /* Panel Nauczyciela (Full Width) */
+        .teacher-panel {
+            background: white; padding: 20px; border-radius: 14px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08); width: 100%; max-width: 98vw;
+        }
+        .dashboard-cards {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin: 20px 0;
+        }
+        .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; text-align: center; }
+        .card h4 { margin: 0 0 5px 0; font-size: 12px; color: #64748b; text-transform: uppercase; }
+        .card p { margin: 0; font-size: 20px; font-weight: bold; color: #0f172a; }
+
+        .tabs { display: flex; gap: 6px; margin: 20px 0 10px 0; border-bottom: 2px solid #e2e8f0; overflow-x: auto; }
+        .tab-btn {
+            background: none; border: none; padding: 10px 18px; font-size: 15px;
+            font-weight: 600; cursor: pointer; color: #64748b; border-bottom: 3px solid transparent; white-space: nowrap;
+        }
+        .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+        .table-responsive { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; margin-top: 15px; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 650px; }
+        th, td { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; text-align: left; }
+        th { background: #f1f5f9; color: #334155; font-weight: 700; }
+
+        .btn-delete-row {
+            background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5;
+            padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold;
+        }
+        .btn-delete-all {
+            background: #ef4444; color: white; border: none; padding: 10px 16px;
+            border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: bold;
+        }
+
+        /* Modal certyfikatu */
+        .modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); display: flex; align-items: center;
+            justify-content: center; padding: 10px; z-index: 1000;
+        }
+        .modal-content {
+            background: white; padding: 20px 15px; border-radius: 14px;
+            max-width: 780px; width: 100%; text-align: center; max-height: 96vh; overflow-y: auto;
+        }
+        canvas {
+            width: 100% !important; height: auto !important; max-width: 700px;
+            border-radius: 8px; margin: 10px 0; border: 1px solid #cbd5e1;
+        }
+        .modal-btns { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+        .btn-action-main {
+            background: var(--success); color: white; border: none; padding: 14px 24px;
+            border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; width: 100%; max-width: 400px;
+        }
+        .btn-download-alt {
+            background: none; border: none; color: #64748b; font-size: 13px;
+            text-decoration: underline; cursor: pointer; padding: 6px;
+        }
+        .btn-close {
+            background: #475569; color: white; border: none; padding: 12px 20px;
+            border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%; max-width: 400px;
+        }
+    </style>
+</head>
+<body>
+
+<div style="font-family: 'Caveat'; font-size: 36px; position: fixed; top: -9999px; left: -9999px;">
+    Stanisław Szymański ąćęłńóśźż
+</div>
+
+<div class="top-nav">
+    <button class="btn-teacher-login" onclick="openTeacherLogin()">🔒 Panel Nauczyciela</button>
+</div>
+
+<!-- ================= EKRAN STARTOWY ================= -->
+<div class="container" id="screen-start">
+    <h1>Egzamin Tabliczki Mnożenia</h1>
+    <p style="color: #64748b; font-size: 13px; margin-bottom: 15px;">Wpisz dane i rozpocznij próbę.</p>
+    
+    <div class="form-group">
+        <label for="student-name">Imię i Nazwisko ucznia:</label>
+        <input type="text" id="student-name" placeholder="np. Jan Kowalski" autocomplete="off" autocapitalize="words">
+    </div>
+
+    <div class="form-group">
+        <label for="student-email">Adres e-mail (do wysyłki certyfikatu):</label>
+        <input type="email" id="student-email" placeholder="np. uczen@szkola.pl" autocomplete="off">
+        <label class="checkbox-label">
+            <input type="checkbox" id="no-email-check" onchange="toggleEmailInput(this)">
+            Nie mam adresu e-mail (pobiorę plik na tablet)
+        </label>
+    </div>
+
+    <div class="form-group">
+        <label for="student-class">Klasa:</label>
+        <select id="student-class">
+            <option value="Klasa 5">Klasa 5 (zakres do 100)</option>
+            <option value="Klasa 6">Klasa 6 (zakres do 100)</option>
+            <option value="Klasa 7">Klasa 7 (rozszerzony pamięciowy)</option>
+            <option value="Klasa 8">Klasa 8 (rozszerzony pamięciowy)</option>
+        </select>
+    </div>
+    <button class="btn-primary" onclick="startExam()">ROZPOCZNIJ PRÓBĘ</button>
+</div>
+
+<!-- ================= EKRAN EGZAMINU NA TABLET (Z WBUDOWANYM NUMPADEM) ================= -->
+<div class="container hidden" id="screen-exam">
+    <div class="student-stats-bar">
+        <div>Próba: <span id="student-attempt-num">1</span></div>
+        <div id="student-best-info" style="color: var(--success);"></div>
+    </div>
+    
+    <!-- Kropki postępu zadania -->
+    <div class="dots-progress" id="exam-dots">● ○ ○ ○ ○</div>
+    <div class="timer" id="exam-timer">⏱️ 00:00</div>
+    <div class="question-box" id="question-text">7 × 8 = ?</div>
+    
+    <!-- Wyświetlacz wpisywanego wyniku -->
+    <div class="answer-display" id="typed-answer">
+        <span class="answer-placeholder">Wpisz wynik...</span>
+    </div>
+
+    <!-- DOTYKOWY NUMPAD (Kalkulator) -->
+    <div class="numpad-grid">
+        <div class="num-key" onclick="numpadPress(1)">1</div>
+        <div class="num-key" onclick="numpadPress(2)">2</div>
+        <div class="num-key" onclick="numpadPress(3)">3</div>
+        <div class="num-key" onclick="numpadPress(4)">4</div>
+        <div class="num-key" onclick="numpadPress(5)">5</div>
+        <div class="num-key" onclick="numpadPress(6)">6</div>
+        <div class="num-key" onclick="numpadPress(7)">7</div>
+        <div class="num-key" onclick="numpadPress(8)">8</div>
+        <div class="num-key" onclick="numpadPress(9)">9</div>
+        <div class="num-key num-key-action" onclick="numpadClear()">C</div>
+        <div class="num-key" onclick="numpadPress(0)">0</div>
+        <div class="num-key num-key-action" onclick="numpadBackspace()">⌫</div>
+        <button class="num-key num-key-submit" onclick="submitAnswer()">ZATWIERDŹ ⏎</button>
+    </div>
+</div>
+
+<!-- ================= EKRAN NIEPOWODZENIA ================= -->
+<div class="container hidden" id="screen-fail">
+    <h2 style="color: var(--danger); margin-top: 0;">Nie udało się uzyskać 100%</h2>
+    <p id="fail-details" style="font-size: 16px;"></p>
+    <p style="color: #64748b; font-size: 14px;">Aby zdobyć certyfikat, wymagane jest 5 na 5 bezbłędnych odpowiedzi.</p>
+    <button class="btn-primary" onclick="startExam()">SPRÓBUJ PONOWNIE</button>
+    <button class="btn-close" style="margin-top: 10px; width: 100%;" onclick="backToHome()">ZAKOŃCZ</button>
+</div>
+
+<!-- ================= MODAL: 100% I CERTYFIKAT ================= -->
+<div id="modal-success" class="modal hidden">
+    <div class="modal-content">
+        <h2 style="color: var(--success); margin: 0 0 5px 0; font-size: 20px;">🎉 GRATULACJE! UZYSKAŁEŚ 100%! 🎉</h2>
+        <p id="success-summary" style="font-size: 15px; margin: 5px 0;"></p>
+        
+        <canvas id="certCanvas" width="950" height="650"></canvas>
+        
+        <div class="modal-btns">
+            <button class="btn-action-main" id="btn-main-action" onclick="handleMainAction()">
+                📥 POBIERZ CERTYFIKAT NA DYSK
+            </button>
+            <div id="email-status" style="font-weight: bold; font-size: 13px;"></div>
+            
+            <button class="btn-download-alt hidden" id="btn-secondary-download" onclick="downloadCert()">
+                Pobierz kopię certyfikatu (PNG)
+            </button>
+            
+            <button class="btn-close" onclick="closeSuccessModal()">ZAKOŃCZ / KOLEJNY UCZEŃ</button>
+        </div>
+    </div>
+</div>
+
+<!-- ================= PANEL NAUCZYCIELA ================= -->
+<div class="teacher-panel hidden" id="screen-teacher">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; border-bottom: 2px solid #f1f5f9; padding-bottom: 12px;">
+        <div>
+            <h2 style="color: var(--primary); margin: 0; font-size: 22px;">Panel Nauczyciela</h2>
+            <small style="color: #64748b;">Szkoła Podstawowa w Miłowicach | Baza wyników na żywo</small>
+        </div>
+        <div style="display: flex; gap: 8px;">
+            <button class="btn-delete-all" onclick="deleteAllResults()">🗑️ Wyczyść bazę</button>
+            <button class="btn-close" style="width: auto; padding: 10px 18px;" onclick="closeTeacherPanel()">Wróć</button>
+        </div>
+    </div>
+
+    <div class="dashboard-cards">
+        <div class="card">
+            <h4>Liczba uczestników</h4>
+            <p id="stat-total-students">0</p>
+        </div>
+        <div class="card">
+            <h4>Łącznie prób</h4>
+            <p id="stat-total-attempts">0</p>
+        </div>
+        <div class="card" style="border-left: 4px solid #16a34a;">
+            <h4>Lider (Klasy 5-6)</h4>
+            <p id="stat-best-56" style="font-size: 15px; color: #16a34a;">-</p>
+        </div>
+        <div class="card" style="border-left: 4px solid #2563eb;">
+            <h4>Lider (Klasy 7-8)</h4>
+            <p id="stat-best-78" style="font-size: 15px; color: #2563eb;">-</p>
+        </div>
+    </div>
+
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchClassTab('Klasa 5')">Klasa 5</button>
+        <button class="tab-btn" onclick="switchClassTab('Klasa 6')">Klasa 6</button>
+        <button class="tab-btn" onclick="switchClassTab('Klasa 7')">Klasa 7</button>
+        <button class="tab-btn" onclick="switchClassTab('Klasa 8')">Klasa 8</button>
+    </div>
+
+    <div style="background: #e0f2fe; padding: 12px; border-radius: 8px; margin: 10px 0; font-weight: 600; color: #0369a1; font-size: 14px;">
+        Średni czas 100% w <span id="current-tab-name">Klasa 5</span>: 
+        <span id="current-class-avg-time" style="font-weight: bold; font-size: 16px;">-</span>
+    </div>
+
+    <div class="table-responsive">
+        <table>
+            <thead>
+                <tr>
+                    <th>Data i godzina</th>
+                    <th>Uczeń</th>
+                    <th>E-mail</th>
+                    <th>Wynik</th>
+                    <th>Czas</th>
+                    <th>Status</th>
+                    <th>Akcja</th>
+                </tr>
+            </thead>
+            <tbody id="class-table-body">
+                <tr><td colspan="7">Ładowanie...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    // ========================================================
+    // KONFIGURACJA KLUCZY:
+    // ========================================================
+    const TEACHER_PASSWORD = "nauczyciel123";
+
+    // Supabase
+    const SUPABASE_URL = "https://mgnvnubmsejskoiansbq.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_XN4HnSs262Op_JmjhLwziA_8YWXaAXd";
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // EmailJS
+    const EMAILJS_SERVICE_ID = "service_ny06tml";
+    const EMAILJS_TEMPLATE_ID = "template_xh4t6ap";
+    const EMAILJS_PUBLIC_KEY = "auhGLTN0x9klAgi72";
+    emailjs.init(EMAILJS_PUBLIC_KEY);
+
+    let studentName = "";
+    let studentEmail = "";
+    let studentClass = "Klasa 5";
+    let questions = [];
+    let currentQ = 0;
+    let correctCount = 0;
+    let timerInterval = null;
+    let startTime = 0;
+    let elapsedSeconds = 0;
+    let studentAttempts = 0;
+    let studentBest100Time = null;
+    let currentTabClass = "Klasa 5";
+    let allExamData = [];
+    let currentInput = ""; // Zmienna trzymająca wpisane cyfry z Numpada
+
+    // ================= LOGIKA WBUDOWANEGO NUMPADA =================
+    function numpadPress(digit) {
+        if (currentInput.length >= 4) return; // Maksymalnie 4 cyfry
+        currentInput += digit.toString();
+        updateDisplay();
+    }
+
+    function numpadBackspace() {
+        currentInput = currentInput.slice(0, -1);
+        updateDisplay();
+    }
+
+    function numpadClear() {
+        currentInput = "";
+        updateDisplay();
+    }
+
+    function updateDisplay() {
+        const display = document.getElementById("typed-answer");
+        if (currentInput === "") {
+            display.innerHTML = `<span class="answer-placeholder">Wpisz wynik...</span>`;
+        } else {
+            display.innerText = currentInput;
+        }
+    }
+
+    // Obsługa fizycznej klawiatury (dla laptopów i komputerów stacjonarnych)
+    window.addEventListener("keydown", (e) => {
+        const examScreen = document.getElementById("screen-exam");
+        if (examScreen.classList.contains("hidden")) return;
+
+        if (e.key >= "0" && e.key <= "9") {
+            numpadPress(parseInt(e.key));
+        } else if (e.key === "Backspace") {
+            numpadBackspace();
+        } else if (e.key === "Escape" || e.key.toLowerCase() === "c") {
+            numpadClear();
+        } else if (e.key === "Enter") {
+            submitAnswer();
+        }
+    });
+
+    function toggleEmailInput(checkbox) {
+        const emailInput = document.getElementById("student-email");
+        if (checkbox.checked) {
+            emailInput.value = "";
+            emailInput.disabled = true;
+            emailInput.placeholder = "Pominięto (pobranie na urządzenie)";
+        } else {
+            emailInput.disabled = false;
+            emailInput.placeholder = "np. uczen@szkola.pl";
+        }
+    }
+
+    function generateQuestions(cls) {
+        let qList = [];
+        let isAdvanced = (cls === "Klasa 7" || cls === "Klasa 8");
+        for (let i = 0; i < 5; i++) {
+            let isMult = Math.random() > 0.4;
+            let a, b, qText, ans;
+            if (!isAdvanced) {
+                a = Math.floor(Math.random() * 8) + 3;
+                b = Math.floor(Math.random() * 8) + 3;
+            } else {
+                let setA = [6, 7, 8, 9, 11, 12, 13, 14, 15];
+                let setB = [4, 5, 6, 7, 8, 9, 11, 12];
+                a = setA[Math.floor(Math.random() * setA.length)];
+                b = setB[Math.floor(Math.random() * setB.length)];
+            }
+            if (isMult) { qText = `${a} × ${b} =`; ans = a * b; }
+            else { qText = `${a * b} ÷ ${a} =`; ans = b; }
+            qList.push({ text: qText, answer: ans });
+        }
+        return qList;
+    }
+
+    async function startExam() {
+        if (!studentName) {
+            studentName = document.getElementById("student-name").value.trim();
+            studentClass = document.getElementById("student-class").value;
+            const noEmail = document.getElementById("no-email-check").checked;
+            studentEmail = noEmail ? "" : document.getElementById("student-email").value.trim();
+        }
+
+        if (!studentName) { alert("Proszę wpisać imię i nazwisko!"); return; }
+        
+        const noEmailChecked = document.getElementById("no-email-check").checked;
+        if (!noEmailChecked && (!studentEmail || !studentEmail.includes("@"))) {
+            alert("Podaj poprawny adres e-mail lub zaznacz opcję braku adresu!");
+            return;
+        }
+
+        const { data: past } = await supabaseClient.from('wyniki_egzaminu')
+            .select('*').eq('student_name', studentName).eq('category', studentClass);
+
+        studentAttempts = (past ? past.length : 0) + 1;
+        let pastPassed = past ? past.filter(p => p.is_passed) : [];
+        if (pastPassed.length > 0) {
+            studentBest100Time = Math.min(...pastPassed.map(p => p.duration_seconds));
+        }
+
+        document.getElementById("student-attempt-num").innerText = studentAttempts;
+        document.getElementById("student-best-info").innerText = studentBest100Time 
+            ? `Twój rekord: ${studentBest100Time}s` : "";
+
+        questions = generateQuestions(studentClass);
+        currentQ = 0; correctCount = 0; elapsedSeconds = 0;
+
+        document.getElementById("screen-start").classList.add("hidden");
+        document.getElementById("screen-fail").classList.add("hidden");
+        document.getElementById("screen-exam").classList.remove("hidden");
+
+        startTime = Date.now();
+        timerInterval = setInterval(() => {
+            elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
+            let mins = String(Math.floor(elapsedSeconds / 60)).padStart(2, '0');
+            let secs = String(elapsedSeconds % 60).padStart(2, '0');
+            document.getElementById("exam-timer").innerText = `⏱️ ${mins}:${secs}`;
+        }, 1000);
+
+        showQuestion();
+    }
+
+    function showQuestion() {
+        // Rysowanie kropek postępu (np. ● ● ○ ○ ○)
+        let dots = "";
+        for (let i = 0; i < 5; i++) {
+            dots += (i === currentQ) ? "● " : (i < currentQ ? "✓ " : "○ ");
+        }
+        document.getElementById("exam-dots").innerText = dots;
+        document.getElementById("question-text").innerText = questions[currentQ].text;
+        numpadClear();
+    }
+
+    function submitAnswer() {
+        if (currentInput === "") return;
+        let val = parseInt(currentInput);
+        if (isNaN(val)) return;
+
+        if (val === questions[currentQ].answer) correctCount++;
+
+        currentQ++;
+        if (currentQ < 5) {
+            showQuestion();
+        } else {
+            finishExam();
+        }
+    }
+
+    async function finishExam() {
+        clearInterval(timerInterval);
+        document.getElementById("screen-exam").classList.add("hidden");
+        let isPassed = (correctCount === 5);
+
+        // Zapis w Supabase
+        await supabaseClient.from('wyniki_egzaminu').insert([{
+            student_name: studentName,
+            category: studentClass,
+            is_passed: isPassed,
+            score: correctCount,
+            duration_seconds: elapsedSeconds,
+            email: studentEmail || "Brak (pobrano plik)"
+        }]);
+
+        if (isPassed) {
+            let summaryText = `Czas: <b>${elapsedSeconds} sekund</b> (Próba nr <b>${studentAttempts}</b>)`;
+            if (studentEmail) {
+                summaryText += `<br>Potwierdzenie zostanie wysłane na: <b>${studentEmail}</b>`;
+                document.getElementById("btn-main-action").innerText = `✉️ WYŚLIJ POTWIERDZENIE NA E-MAIL`;
+                document.getElementById("btn-secondary-download").classList.remove("hidden");
+            } else {
+                summaryText += `<br>Certyfikat jest gotowy do pobrania na tablet!`;
+                document.getElementById("btn-main-action").innerText = `📥 POBIERZ CERTYFIKAT NA DYSK`;
+                document.getElementById("btn-secondary-download").classList.add("hidden");
+            }
+
+            document.getElementById("success-summary").innerHTML = summaryText;
+            await drawCertificate();
+
+            document.getElementById("email-status").innerText = "";
+            document.getElementById("modal-success").classList.remove("hidden");
+        } else {
+            document.getElementById("fail-details").innerHTML = 
+                `Wynik: <b>${correctCount}/5</b> | Czas próby: <b>${elapsedSeconds}s</b> | Była to próba nr <b>${studentAttempts}</b>.`;
+            document.getElementById("screen-fail").classList.remove("hidden");
+        }
+    }
+
+    function handleMainAction() {
+        if (studentEmail) {
+            sendCertEmail();
+        } else {
+            downloadCert();
+        }
+    }
+
+    function backToHome() {
+        studentName = ""; studentEmail = ""; currentInput = "";
+        document.getElementById("student-name").value = "";
+        document.getElementById("student-email").value = "";
+        document.getElementById("no-email-check").checked = false;
+        document.getElementById("student-email").disabled = false;
+        document.getElementById("screen-fail").classList.add("hidden");
+        document.getElementById("screen-start").classList.remove("hidden");
+    }
+
+    function closeSuccessModal() {
+        document.getElementById("modal-success").classList.add("hidden");
+        backToHome();
+    }
+
+    // ================= RYSOWANIE CERTYFIKATU Z POLSKIMI ZNAKAMI =================
+    async function drawCertificate() {
+        try {
+            await document.fonts.load("bold 36px 'Caveat'", "Stanisław Szymański");
+        } catch(e) {}
+
+        const canvas = document.getElementById("certCanvas");
+        const ctx = canvas.getContext("2d");
+
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Ramka
+        ctx.strokeStyle = "#1e3a8a"; ctx.lineWidth = 14;
+        ctx.strokeRect(20, 20, canvas.width - 40, canvas.height - 40);
+        ctx.strokeStyle = "#d97706"; ctx.lineWidth = 3;
+        ctx.strokeRect(32, 32, canvas.width - 64, canvas.height - 64);
+
+        ctx.textAlign = "center";
+
+        // Logo
+        ctx.fillStyle = "#1e3a8a"; ctx.font = "bold 20px 'Segoe UI', Arial";
+        ctx.fillText("🏫 SZKOŁA PODSTAWOWA W MIŁOWICACH", canvas.width / 2, 75);
+
+        // Wydarzenie
+        ctx.fillStyle = "#d97706"; ctx.font = "bold 15px 'Segoe UI', Arial";
+        ctx.fillText("★ OBCHODY ŚWIATOWEGO DNIA TABLICZKI MNOŻENIA ★", canvas.width / 2, 105);
+
+        // Tytuł
+        ctx.fillStyle = "#b45309"; ctx.font = "bold 44px 'Georgia', serif";
+        ctx.fillText("CERTYFIKAT", canvas.width / 2, 165);
+
+        ctx.fillStyle = "#334155"; ctx.font = "italic 21px 'Georgia', serif";
+        ctx.fillText("Tytuł Mistrza Tabliczki Mnożenia otrzymuje:", canvas.width / 2, 215);
+
+        // Uczeń
+        ctx.fillStyle = "#1e3a8a"; ctx.font = "bold 38px 'Segoe UI', Arial";
+        ctx.fillText(studentName, canvas.width / 2, 275);
+
+        ctx.strokeStyle = "#cbd5e1"; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(200, 290); ctx.lineTo(canvas.width - 200, 290); ctx.stroke();
+
+        ctx.fillStyle = "#334155"; ctx.font = "20px 'Segoe UI', Arial";
+        ctx.fillText(`Uczeń / Uczennica: ${studentClass}`, canvas.width / 2, 335);
+
+        let mins = String(Math.floor(elapsedSeconds / 60)).padStart(2, '0');
+        let secs = String(elapsedSeconds % 60).padStart(2, '0');
+        ctx.fillText(`Czas bezbłędnego rachunku (100%): ${mins}:${secs} (${elapsedSeconds}s) | Próba nr ${studentAttempts}`, canvas.width / 2, 370);
+
+        // Medal MT EXPERT
+        ctx.beginPath();
+        ctx.arc(canvas.width / 2, 465, 46, 0, Math.PI * 2);
+        ctx.fillStyle = "#f59e0b"; ctx.fill();
+        ctx.lineWidth = 3; ctx.strokeStyle = "#b45309"; ctx.stroke();
+
+        ctx.fillStyle = "#ffffff"; ctx.font = "bold 15px Arial";
+        ctx.fillText("MT", canvas.width / 2, 460);
+        ctx.fillText("EXPERT", canvas.width / 2, 478);
+
+        // Data i godzina
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('pl-PL');
+        const timeStr = now.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+        ctx.textAlign = "left";
+        ctx.fillStyle = "#334155"; ctx.font = "bold 15px 'Segoe UI', Arial";
+        ctx.fillText(`Miłowice, dn. ${dateStr} r.`, 70, 565);
+
+        ctx.fillStyle = "#64748b"; ctx.font = "14px 'Segoe UI', Arial";
+        ctx.fillText(`Godz. ukończenia: ${timeStr}`, 70, 588);
+
+        // Podpis
+        const sigCenterX = canvas.width - 230;
+
+        ctx.textAlign = "center";
+        ctx.fillStyle = "#94a3b8"; ctx.font = "14px Arial";
+        ctx.fillText("........................................................", sigCenterX, 582);
+
+        ctx.fillStyle = "#475569"; ctx.font = "bold 14px 'Segoe UI', Arial";
+        ctx.fillText("Podpis Nauczyciela", sigCenterX, 604);
+
+        ctx.save();
+        ctx.fillStyle = "#1e40af";
+        ctx.font = "700 36px 'Caveat', cursive";
+        ctx.translate(sigCenterX, 568);
+        ctx.rotate(-0.05);
+        ctx.fillText("Stanisław Szymański", 0, 0);
+        ctx.restore();
+    }
+
+    async function sendCertEmail() {
+        const btn = document.getElementById("btn-main-action");
+        const status = document.getElementById("email-status");
+        
+        btn.disabled = true;
+        btn.innerText = "⏳ Wysyłanie...";
+        status.style.color = "#0284c7";
+        status.innerText = "Trwa wysyłanie wiadomości na Gmail...";
+
+        try {
+            await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+                to_email: studentEmail,
+                student_name: studentName,
+                student_class: studentClass,
+                time_seconds: elapsedSeconds,
+                attempt_num: studentAttempts
+            });
+
+            status.style.color = "var(--success)";
+            status.innerText = `✅ Potwierdzenie wysłane na: ${studentEmail}! Certyfikat pobiera się...`;
+            btn.innerText = "✓ WYSŁANO POMYŚLNIE";
+            setTimeout(downloadCert, 800);
+
+        } catch (err) {
+            console.error("Błąd EmailJS:", err);
+            status.style.color = "var(--danger)";
+            status.innerText = "Błąd wysyłki e-mail. Pobierz certyfikat przyciskiem poniżej.";
+            btn.disabled = false;
+            btn.innerText = "Spróbuj wysłać ponownie";
+        }
+    }
+
+    function downloadCert() {
+        const canvas = document.getElementById("certCanvas");
+        const link = document.createElement('a');
+        link.download = `Certyfikat_${studentClass}_${studentName.replace(/\s+/g, '_')}.png`;
+        link.href = canvas.toDataURL("image/png");
+        link.click();
+    }
+
+    // ================= PANEL NAUCZYCIELA =================
+    function openTeacherLogin() {
+        let pass = prompt("Podaj hasło nauczyciela:");
+        if (pass === TEACHER_PASSWORD) {
+            document.getElementById("screen-start").classList.add("hidden");
+            document.getElementById("screen-exam").classList.add("hidden");
+            document.getElementById("screen-fail").classList.add("hidden");
+            document.getElementById("screen-teacher").classList.remove("hidden");
+            loadTeacherDashboard();
+        } else if (pass !== null) {
+            alert("Niepoprawne hasło!");
+        }
+    }
+
+    function closeTeacherPanel() {
+        document.getElementById("screen-teacher").classList.add("hidden");
+        document.getElementById("screen-start").classList.remove("hidden");
+    }
+
+    async function loadTeacherDashboard() {
+        const { data, error } = await supabaseClient.from('wyniki_egzaminu').select('*').order('created_at', { ascending: false });
+        if (error) {
+            console.error("Błąd ładowania danych:", error);
+            return;
+        }
+        allExamData = data || [];
+
+        let uniqueStudents = new Set(allExamData.map(r => r.student_name.trim().toLowerCase()));
+        document.getElementById("stat-total-students").innerText = uniqueStudents.size;
+        document.getElementById("stat-total-attempts").innerText = allExamData.length;
+
+        // Najlepszy w klasach 5-6
+        let pass56 = allExamData.filter(r => (r.category === "Klasa 5" || r.category === "Klasa 6") && r.is_passed);
+        if (pass56.length > 0) {
+            pass56.sort((a,b) => a.duration_seconds - b.duration_seconds);
+            document.getElementById("stat-best-56").innerText = `${pass56[0].student_name} (${pass56[0].category}) - ${pass56[0].duration_seconds}s`;
+        } else {
+            document.getElementById("stat-best-56").innerText = "Brak";
+        }
+
+        // Najlepszy w klasach 7-8
+        let pass78 = allExamData.filter(r => (r.category === "Klasa 7" || r.category === "Klasa 8") && r.is_passed);
+        if (pass78.length > 0) {
+            pass78.sort((a,b) => a.duration_seconds - b.duration_seconds);
+            document.getElementById("stat-best-78").innerText = `${pass78[0].student_name} (${pass78[0].category}) - ${pass78[0].duration_seconds}s`;
+        } else {
+            document.getElementById("stat-best-78").innerText = "Brak";
+        }
+
+        renderClassTable(currentTabClass);
+    }
+
+    function switchClassTab(clsName) {
+        currentTabClass = clsName;
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.innerText === clsName);
+        });
+        renderClassTable(clsName);
+    }
+
+    function renderClassTable(clsName) {
+        document.getElementById("current-tab-name").innerText = clsName;
+        let classRows = allExamData.filter(r => r.category === clsName);
+
+        let passRows = classRows.filter(r => r.is_passed);
+        if (passRows.length > 0) {
+            let sumSecs = passRows.reduce((acc, curr) => acc + curr.duration_seconds, 0);
+            let avg = Math.round(sumSecs / passRows.length);
+            document.getElementById("current-class-avg-time").innerText = `${avg}s (${Math.floor(avg/60)}m ${avg%60}s)`;
+        } else {
+            document.getElementById("current-class-avg-time").innerText = "Brak wyników 100%";
+        }
+
+        const tbody = document.getElementById("class-table-body");
+        tbody.innerHTML = "";
+
+        if (classRows.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7">Brak podejść uczniów z: ${clsName}</td></tr>`;
+            return;
+        }
+
+        classRows.forEach(r => {
+            let status = r.is_passed 
+                ? `<span style="color: var(--success); font-weight: bold;">ZDAŁ (100%)</span>` 
+                : `<span style="color: var(--danger);">Niezdane (${r.score}/5)</span>`;
+            
+            let dateStr = new Date(r.created_at).toLocaleString('pl-PL');
+
+            let tr = document.createElement("tr");
+            tr.innerHTML = `
+                <td><small>${dateStr}</small></td>
+                <td><b>${r.student_name}</b></td>
+                <td><small>${r.email || "-"}</small></td>
+                <td><b>${r.score}/5</b></td>
+                <td>${r.duration_seconds}s</td>
+                <td>${status}</td>
+                <td>
+                    <button class="btn-delete-row" onclick="deleteSingleResult(${r.id})">🗑️ Usuń</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    async function deleteSingleResult(id) {
+        if (!confirm("Czy na pewno chcesz usunąć ten wpis?")) return;
+        const { error } = await supabaseClient.from('wyniki_egzaminu').delete().eq('id', id);
+        if (error) {
+            alert("Błąd: " + error.message);
+        } else {
+            loadTeacherDashboard();
+        }
+    }
+
+    async function deleteAllResults() {
+        let confirmText = prompt("UWAGA: Usuniesz WSZYSTKIE wyniki z bazy!\nAby potwierdzić, wpisz: USUN");
+        if (confirmText === "USUN") {
+            const { error } = await supabaseClient.from('wyniki_egzaminu').delete().neq('id', 0);
+            if (error) {
+                alert("Błąd: " + error.message);
+            } else {
+                alert("Wszystkie wyniki zostały pomyślnie usunięte!");
+                loadTeacherDashboard();
+            }
+        }
+    }
+</script>
+
+</body>
+</html>
